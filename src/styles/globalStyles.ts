@@ -1,16 +1,18 @@
 import { StyleSheet } from 'react-native';
-import { colors } from './colors';
-import { typography } from './typography';
-import { dimensions } from './dimensions';
+import { colors } from './colors.ts';
+import { typography } from './typography.ts';
+import { dimensions } from './dimensions.ts';
 
 export const globalStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
+    fontFamily: typography.fontFamily.regular,
   },
   safeArea: {
     flex: 1,
     backgroundColor: colors.background.primary,
+    fontFamily: typography.fontFamily.regular,
   },
   screenPadding: {
     paddingHorizontal: dimensions.spacing.md,
@@ -39,6 +41,15 @@ export const globalStyles = StyleSheet.create({
   buttonText: {
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.semibold,
+    fontFamily: typography.fontFamily.regular,
     color: colors.text.white,
   },
+  text: {
+    fontFamily: typography.fontFamily.regular,
+  },
+  textBold: {
+    fontFamily: typography.fontFamily.regular,
+    fontWeight: typography.weights.bold,
+  },
+
 });
