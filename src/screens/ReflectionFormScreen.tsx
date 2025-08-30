@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useColors } from '../hooks/useColors';
 import { useAlert } from '../context/AlertContext';
+import { FriendSelector } from '../components/common/FriendSelector';
 import { useTheme } from '../context/ThemeContext';
 import { typography } from '../styles/typography';
 import { dimensions } from '../styles/dimensions';
@@ -24,6 +25,13 @@ interface ReflectionFormData {
   recipient: string;
   reward: string;
 }
+
+interface SelectedFriend {
+  id: string;
+  name: string;
+  email?: string;
+}
+
 
 export const ReflectionFormScreen: React.FC = () => {
   const colors = useColors();
@@ -45,8 +53,13 @@ export const ReflectionFormScreen: React.FC = () => {
     reward: '',
   });
 
+  // 친구 상태
+  const [selectedFriends, setSelectedFriends] = useState<Friend[]>([]);
+  const [showFriendSelector, setShowFriendSelector] = useState(false);
+
   // 유효성 검사 상태
   const [errors, setErrors] = useState<Partial<ReflectionFormData>>({});
+
 
   // 수정 모드일 때 기존 데이터 로드
   useEffect(() => {
@@ -60,6 +73,28 @@ export const ReflectionFormScreen: React.FC = () => {
     }
   }, [mode, reflection]);
 
+  // 친구 선택 시 recipient 자동 설정
+  useEffect(() => {
+    if (selectedFriends.length > 0) {
+      const recipientNames = selectedFriends.map(f => f.name).join(', ');
+      setFormData(prev => ({
+        ...prev,
+        recipient: recipientNames
+      }));
+      // recipient 에러 제거
+      if (errors.recipient) {
+        setErrors(prev => ({ ...prev, recipient: undefined }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        recipient: ''
+      }));
+    }
+  }, [selectedFriends, errors.recipient]);
+
+
+
   // 입력값 변경 핸들러
   const handleInputChange = (field: keyof ReflectionFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -68,6 +103,28 @@ export const ReflectionFormScreen: React.FC = () => {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
   };
+
+  // 친구 선택 핸들러
+  const handleFriendsSelect = (friends: Friend[]) => {
+    setSelectedFriends(friends);
+  };
+
+
+  // recipient 직접 입력 시 선택된 친구 초기화
+  const handleRecipientChange = (text: string) => {
+    handleInputChange('recipient', text);
+    // 직접 입력된 텍스트가 선택된 친구들과 다르면 친구 선택 초기화
+    const currentNames = selectedFriends.map(f => f.name).join(', ');
+    if (text !== currentNames) {
+      setSelectedFriends([]);
+    }
+  };
+
+  // 선택된 친구 제거
+  const removeFriend = (friendId: string) => {
+    setSelectedFriends(prev => prev.filter(f => f.id !== friendId));
+  };
+
 
   // 유효성 검사
   const validateForm = (): boolean => {
@@ -186,6 +243,80 @@ export const ReflectionFormScreen: React.FC = () => {
     </View>
   );
 
+  // 전달 대상 입력 부분 렌더링
+  const renderRecipientInput = () => (
+    <View style={styles.inputGroup}>
+      <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
+        전달 대상 <Text style={{ color: colors.primary.coral }}>*</Text>
+      </Text>
+
+      {/* 선택된 친구들 표시 */}
+      {selectedFriends.length > 0 && (
+        <View style={styles.selectedFriendsContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectedFriendsScroll}>
+            {selectedFriends.map((friend) => (
+              <View key={friend.id} style={[styles.selectedFriendChip, { backgroundColor: colors.background.card }]}>
+                <Text style={[styles.selectedFriendName, { color: colors.text.primary }]}>
+                  {friend.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => removeFriend(friend.id)}
+                  style={styles.removeFriendButton}
+                >
+                  <Ionicons name="close-circle" size={16} color={colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* 입력 필드와 친구 선택 버튼 */}
+      <View style={styles.recipientInputContainer}>
+        <TextInput
+          style={[
+            styles.textInput,
+            styles.recipientInput,
+            {
+              backgroundColor: colors.background.card,
+              color: colors.text.primary,
+              borderColor: errors.recipient ? colors.primary.coral : 'transparent'
+            }
+          ]}
+          placeholder="직접 입력하거나 친구 선택"
+          placeholderTextColor={colors.text.secondary}
+          value={formData.recipient}
+          onChangeText={handleRecipientChange}
+          maxLength={100}
+          multiline
+        />
+        <TouchableOpacity
+          onPress={() => setShowFriendSelector(true)}
+          style={[styles.friendSelectButton, { backgroundColor: colors.primary.coral }]}
+        >
+          <Ionicons name="people" size={16} color={colors.text.white} />
+          <Text style={[styles.friendSelectText, { color: colors.text.white }]}>
+            친구 선택
+          </Text>
+          {selectedFriends.length > 0 && (
+            <View style={[styles.selectedCountBadge, { backgroundColor: colors.text.white }]}>
+              <Text style={[styles.selectedCountText, { color: colors.primary.coral }]}>
+                {selectedFriends.length}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {errors.recipient && (
+        <Text style={[styles.errorText, { color: colors.primary.coral }]}>
+          {errors.recipient}
+        </Text>
+      )}
+    </View>
+  );
+
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background.primary }]}>
       {/* 헤더 */}
@@ -245,32 +376,8 @@ export const ReflectionFormScreen: React.FC = () => {
               )}
             </View>
 
-            {/* 전달 대상 입력 */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
-                전달 대상 <Text style={{ color: colors.primary.coral }}>*</Text>
-              </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: colors.background.card,
-                    color: colors.text.primary,
-                    borderColor: errors.recipient ? colors.primary.coral : 'transparent'
-                  }
-                ]}
-                placeholder="누구에게 전달할까요? (예: 팀장님, 동료들)"
-                placeholderTextColor={colors.text.secondary}
-                value={formData.recipient}
-                onChangeText={(text) => handleInputChange('recipient', text)}
-                maxLength={30}
-              />
-              {errors.recipient && (
-                <Text style={[styles.errorText, { color: colors.primary.coral }]}>
-                  {errors.recipient}
-                </Text>
-              )}
-            </View>
+            {/* 전달 대상 입력 - 수정된 부분 */}
+            {renderRecipientInput()}
 
             {/* 보상 입력 */}
             <View style={styles.inputGroup}>
@@ -338,10 +445,60 @@ export const ReflectionFormScreen: React.FC = () => {
           {/* 미리보기 섹션 */}
           {renderPreview()}
         </View>
+
       </ScrollView>
+
+      {/* 친구 선택 모달 */}
+      <FriendSelector
+        visible={showFriendSelector}
+        onClose={() => setShowFriendSelector(false)}
+        onConfirm={handleFriendsSelect}
+        selectedFriends={selectedFriends}
+        multiple={true}
+        title="반성문 전달 대상 선택"
+      />
     </SafeAreaView>
   );
 };
+
+const additionalStyles = StyleSheet.create({
+  selectedFriendsContainer: {
+    marginBottom: dimensions.spacing.sm,
+  },
+  selectedFriendsScroll: {
+    maxHeight: 80,
+  },
+  selectedFriendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: dimensions.spacing.sm,
+    paddingVertical: dimensions.spacing.xs,
+    borderRadius: dimensions.borderRadius.md,
+    marginRight: dimensions.spacing.xs,
+    marginBottom: dimensions.spacing.xs,
+    gap: dimensions.spacing.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  selectedFriendName: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    fontFamily: typography.fontFamily.regular,
+  },
+  selectedCountBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCountText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    fontFamily: typography.fontFamily.regular,
+  },
+});
+
 
 const styles = StyleSheet.create({
   container: {
@@ -411,6 +568,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minHeight: 120,
   },
+  recipientInputContainer: {
+    flexDirection: 'row',
+    gap: dimensions.spacing.sm,
+  },
+  recipientInput: {
+    flex: 1,
+  },
+  friendSelectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: dimensions.spacing.md,
+    paddingVertical: dimensions.spacing.sm,
+    borderRadius: dimensions.borderRadius.md,
+    gap: dimensions.spacing.xs,
+    minHeight: 48,
+  },
+  friendSelectText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    fontFamily: typography.fontFamily.regular,
+  },
+  selectedFriendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: dimensions.spacing.md,
+    borderRadius: dimensions.borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  selectedFriendInfo: {
+    flex: 1,
+  },
+  selectedFriendName: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.medium,
+    fontFamily: typography.fontFamily.regular,
+  },
+  selectedFriendEmail: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
+    marginTop: 2,
+  },
+  removeFriendButton: {
+    padding: dimensions.spacing.xs,
+  },
+
   textCountContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -513,4 +716,5 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
     fontFamily: typography.fontFamily.regular,
   },
+  ...additionalStyles,
 });

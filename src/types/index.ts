@@ -56,6 +56,34 @@ export type RootStackParamList = {
   };
 };
 
+export interface Friend {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  isRegistered: boolean;
+  status: 'pending' | 'accepted' | 'blocked';
+  addedAt: string;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  isRegistered: boolean;
+  isInvited: boolean;
+}
+
+export interface InviteMethod {
+  type: 'sms' | 'email' | 'kakao' | 'facebook' | 'instagram' | 'copy';
+  label: string;
+  icon: string;
+  color: string;
+}
+
+
 declare global {
   namespace ReactNavigation {
     interface RootParamList extends RootStackParamList {}
