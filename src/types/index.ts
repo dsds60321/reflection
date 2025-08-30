@@ -27,4 +27,39 @@ export interface DashboardStats {
   praisesReceived: number;
 }
 
+export type RootStackParamList = {
+  ReflectionMain: undefined;
+  ReflectionDetail: {
+    reflection: {
+      id: string;
+      title: string;
+      content: string;
+      author: string;
+      recipient?: string;
+      date: string;
+      reward?: string;
+      status: 'completed' | 'pending';
+    };
+  };
+  ReflectionForm: {
+    mode: 'create' | 'edit';
+    reflection?: {
+      id: string;
+      title: string;
+      content: string;
+      author: string;
+      recipient?: string;
+      date: string;
+      reward?: string;
+      status: 'completed' | 'pending';
+    };
+  };
+};
+
+declare global {
+  namespace ReactNavigation {
+    interface RootParamList extends RootStackParamList {}
+  }
+}
+
 export type TabType = 'reflections' | 'praises';

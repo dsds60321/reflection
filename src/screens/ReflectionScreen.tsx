@@ -9,16 +9,15 @@ import {
   Image,
   TextInput,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColors } from '../hooks/useColors.ts';
 import { useTheme } from '../context/ThemeContext.tsx';
 import { typography } from '../styles/typography.ts';
 import { dimensions } from '../styles/dimensions.ts';
-import { ReflectionDetailModal } from '../components/reflection/ReflectionDetailModal.tsx';
 import { Calendar } from '../components/common/Calendar.tsx';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { ReflectionFormModal } from '../components/reflection/ReflectionFormModal.tsx';
 
 // 더 많은 반성문 데이터
 const MOCK_REFLECTIONS = [
@@ -105,13 +104,11 @@ const groupReflectionsByDate = (reflections: typeof MOCK_REFLECTIONS) => {
 export const ReflectionScreen: React.FC = () => {
   const colors = useColors();
   const { theme, toggleTheme } = useTheme();
+  const navigation = useNavigation();
 
   // 상태 관리
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedReflection, setSelectedReflection] = useState<typeof MOCK_REFLECTIONS[0] | null>(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isFormModalVisible, setIsFormModalVisible] = useState(false); // 추가
   const [isWeekView, setIsWeekView] = useState(false); // 주/월 단위 보기 상태 추가
 
 
@@ -149,14 +146,7 @@ export const ReflectionScreen: React.FC = () => {
 
   // 반성문 클릭 핸들러
   const handleReflectionPress = (item: typeof MOCK_REFLECTIONS[0]) => {
-    setSelectedReflection(item);
-    setIsModalVisible(true);
-  };
-
-  // 모달 닫기 핸들러
-  const handleModalClose = () => {
-    setIsModalVisible(false);
-    setSelectedReflection(null);
+    navigation.navigate('ReflectionDetail', { reflection: item });
   };
 
   // 날짜에 반성문이 있는지 확인하는 함수
@@ -176,7 +166,7 @@ export const ReflectionScreen: React.FC = () => {
       <Text style={[styles.headerTitle, { color: colors.text.primary }]}>반성문</Text>
       <View style={styles.headerActions}>
         <TouchableOpacity
-          onPress={() => setIsFormModalVisible(true)}
+          onPress={() => navigation.navigate('ReflectionForm', { mode: 'create' })}
           style={[styles.addButton, { backgroundColor: colors.primary.coral }]}
         >
           <MaterialCommunityIcons name="plus" size={20} color={colors.text.white} />
@@ -341,25 +331,10 @@ export const ReflectionScreen: React.FC = () => {
           {renderReflectionsList()}
         </View>
       </ScrollView>
-
-      {/* 반성문 상세 모달 */}
-      {selectedReflection && (
-        <ReflectionDetailModal
-          visible={isModalVisible}
-          onClose={handleModalClose}
-          reflection={selectedReflection}
-        />
-      )}
-
-      {/* 반성문 등록 폼 모달 */}
-      <ReflectionFormModal
-        visible={isFormModalVisible}
-        onClose={() => setIsFormModalVisible(false)}
-        onSubmit={handleReflectionSubmit}
-      />
     </SafeAreaView>
   );
 };
+
 
 
 const styles = StyleSheet.create({

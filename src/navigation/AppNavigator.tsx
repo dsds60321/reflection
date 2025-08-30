@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { Text, View, StyleSheet } from 'react-native';
 import { DashboardScreen } from '../screens/DashboardScreen';
@@ -8,10 +9,39 @@ import { MyScreen } from '../screens/MyScreen';
 import { useColors } from '../hooks/useColors';
 import { typography } from '../styles/typography';
 import { ReflectionScreen } from '../screens/ReflectionScreen.tsx';
+import { ReflectionDetailScreen } from '../screens/ReflectionDetailScreen.tsx';
+import { ReflectionFormScreen } from '../screens/ReflectionFormScreen.tsx';
+import { PraiseDetailScreen } from '../screens/PraiseDetailScreen.tsx';
+import { PraiseFormScreen } from '../screens/PraiseFormScreen.tsx';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../context/ThemeContext';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// Dashboard Stack Navigator
+const DashboardStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="DashboardMain" component={DashboardScreen} />
+      <Stack.Screen name="ReflectionDetail" component={ReflectionDetailScreen} />
+      <Stack.Screen name="ReflectionForm" component={ReflectionFormScreen} />
+      <Stack.Screen name="PraiseDetail" component={PraiseDetailScreen} />
+      <Stack.Screen name="PraiseForm" component={PraiseFormScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// Reflection Stack Navigator
+const ReflectionStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ReflectionMain" component={ReflectionScreen} />
+      <Stack.Screen name="ReflectionDetail" component={ReflectionDetailScreen} />
+      <Stack.Screen name="ReflectionForm" component={ReflectionFormScreen} />
+    </Stack.Navigator>
+  );
+};
 
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
   const { theme } = useTheme();
@@ -22,7 +52,7 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
       case 'Feed': return <Ionicons name="planet-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       case 'Reflection': return <Ionicons name="document-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       case 'Notification': return <Ionicons name="notifications-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
-      case 'My': return <Ionicons name="person-outline" size={20} color={themeColor} style={{ margin: 10 }} />;;
+      case 'My': return <Ionicons name="person-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       default: return <Ionicons name="planet-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
     }
   };
@@ -72,12 +102,12 @@ export const AppNavigator: React.FC = () => {
       >
         <Tab.Screen
           name="Feed"
-          component={DashboardScreen}
+          component={DashboardStack}
           options={{ tabBarLabel: '피드' }}
         />
         <Tab.Screen
           name="Reflection"
-          component={ReflectionScreen}
+          component={ReflectionStack}
           options={{ tabBarLabel: '반성문' }}
         />
         <Tab.Screen

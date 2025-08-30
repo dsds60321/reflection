@@ -1,21 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Modal,
   ScrollView,
   StyleSheet,
   Alert,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColors } from '../../hooks/useColors';
-import { useTheme } from '../../context/ThemeContext';
-import { typography } from '../../styles/typography';
-import { dimensions } from '../../styles/dimensions';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useColors } from '../hooks/useColors';
+import { useAlert } from '../context/AlertContext';
+import { useTheme } from '../context/ThemeContext';
+import { typography } from '../styles/typography';
+import { dimensions } from '../styles/dimensions';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 interface ReflectionFormData {
   title: string;
@@ -24,19 +25,17 @@ interface ReflectionFormData {
   reward: string;
 }
 
-interface ReflectionFormModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSubmit: (data: ReflectionFormData) => void;
-}
-
-export const ReflectionFormModal: React.FC<ReflectionFormModalProps> = ({
-                                                                          visible,
-                                                                          onClose,
-                                                                          onSubmit,
-                                                                        }) => {
+export const ReflectionFormScreen: React.FC = () => {
   const colors = useColors();
   const { theme } = useTheme();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { showAlert } = useAlert();
+
+  const { reflection, mode } = route.params as {
+    reflection?: any;
+    mode?: 'create' | 'edit'
+  } || { mode: 'create' };
 
   // 폼 상태
   const [formData, setFormData] = useState<ReflectionFormData>({
@@ -48,6 +47,18 @@ export const ReflectionFormModal: React.FC<ReflectionFormModalProps> = ({
 
   // 유효성 검사 상태
   const [errors, setErrors] = useState<Partial<ReflectionFormData>>({});
+
+  // 수정 모드일 때 기존 데이터 로드
+  useEffect(() => {
+    if (mode === 'edit' && reflection) {
+      setFormData({
+        title: reflection.title || '',
+        content: reflection.content || '',
+        recipient: reflection.recipient || '',
+        reward: reflection.reward || '',
+      });
+    }
+  }, [mode, reflection]);
 
   // 입력값 변경 핸들러
   const handleInputChange = (field: keyof ReflectionFormData, value: string) => {
@@ -87,45 +98,46 @@ export const ReflectionFormModal: React.FC<ReflectionFormModalProps> = ({
   // 제출 핸들러
   const handleSubmit = () => {
     if (validateForm()) {
-      onSubmit(formData);
-      handleReset();
-      onClose();
+      showAlert({
+        title: '등록 완료',
+        message: `반성문이 성공적으로 ${mode === 'edit' ? '수정' : '등록'}되었습니다.`,
+        icon: 'check-circle',
+        iconColor: colors.primary.coral,
+        buttons: [
+          {
+            text: '확인',
+            onPress: () => navigation.goBack(),
+          },
+        ],
+      });
     }
   };
 
-  // 폼 초기화
-  const handleReset = () => {
-    setFormData({
-      title: '',
-      content: '',
-      recipient: '',
-      reward: '',
-    });
-    setErrors({});
-  };
 
   // 취소 핸들러
   const handleCancel = () => {
-    if (formData.title || formData.content || formData.recipient || formData.reward) {
-      Alert.alert(
-        '작성 취소',
-        '작성 중인 내용이 사라집니다. 계속하시겠습니까?',
-        [
+    const hasChanges = formData.title || formData.content || formData.recipient || formData.reward;
+
+    if (hasChanges) {
+      showAlert({
+        title: '작성 취소',
+        message: '작성 중인 내용이 사라집니다. 계속하시겠습니까?',
+        icon: 'alert-circle',
+        iconColor: colors.text.secondary,
+        buttons: [
           { text: '계속 작성', style: 'cancel' },
           {
             text: '취소',
             style: 'destructive',
-            onPress: () => {
-              handleReset();
-              onClose();
-            }
+            onPress: () => navigation.goBack(),
           },
-        ]
-      );
+        ],
+      });
     } else {
-      onClose();
+      navigation.goBack();
     }
   };
+
 
   // 미리보기 렌더링
   const renderPreview = () => (
@@ -135,7 +147,7 @@ export const ReflectionFormModal: React.FC<ReflectionFormModalProps> = ({
         <View style={styles.previewHeader}>
           <View style={[styles.previewIcon, { backgroundColor: colors.primary.yellow }]}>
             <Image
-              source={require("../../assets/images/devil.png")}
+              source={require("../assets/images/devil.png")}
               style={styles.previewIconImage}
             />
           </View>
@@ -175,161 +187,159 @@ export const ReflectionFormModal: React.FC<ReflectionFormModalProps> = ({
   );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-    >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background.primary }]}>
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
-            <MaterialCommunityIcons name="close" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>반성문 작성</Text>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            style={[
-              styles.headerButton,
-              styles.submitButton,
-              { backgroundColor: colors.primary.coral }
-            ]}
-          >
-            <Text style={[styles.submitButtonText, { color: colors.text.white }]}>등록</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.primary }]}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
+          {mode === 'edit' ? '반성문 수정' : '반성문 작성'}
+        </Text>
+        <TouchableOpacity
+          onPress={handleSubmit}
+          style={[
+            styles.headerButton,
+            styles.submitButton,
+            { backgroundColor: colors.primary.coral }
+          ]}
         >
-          <View style={styles.content}>
-            {/* 폼 섹션 */}
-            <View style={styles.formSection}>
-              {/* 제목 입력 */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
-                  제목 <Text style={{ color: colors.primary.coral }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: colors.background.card,
-                      color: colors.text.primary,
-                      borderColor: errors.title ? colors.primary.coral : 'transparent'
-                    }
-                  ]}
-                  placeholder="반성문 제목을 입력해주세요"
-                  placeholderTextColor={colors.text.secondary}
-                  value={formData.title}
-                  onChangeText={(text) => handleInputChange('title', text)}
-                  maxLength={50}
-                />
-                {errors.title && (
-                  <Text style={[styles.errorText, { color: colors.primary.coral }]}>
-                    {errors.title}
-                  </Text>
-                )}
-              </View>
+          <Text style={[styles.submitButtonText, { color: colors.text.white }]}>
+            {mode === 'edit' ? '수정' : '등록'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-              {/* 전달 대상 입력 */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
-                  전달 대상 <Text style={{ color: colors.primary.coral }}>*</Text>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.content}>
+          {/* 폼 섹션 */}
+          <View style={styles.formSection}>
+            {/* 제목 입력 */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
+                제목 <Text style={{ color: colors.primary.coral }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.background.card,
+                    color: colors.text.primary,
+                    borderColor: errors.title ? colors.primary.coral : 'transparent'
+                  }
+                ]}
+                placeholder="반성문 제목을 입력해주세요"
+                placeholderTextColor={colors.text.secondary}
+                value={formData.title}
+                onChangeText={(text) => handleInputChange('title', text)}
+                maxLength={50}
+              />
+              {errors.title && (
+                <Text style={[styles.errorText, { color: colors.primary.coral }]}>
+                  {errors.title}
                 </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: colors.background.card,
-                      color: colors.text.primary,
-                      borderColor: errors.recipient ? colors.primary.coral : 'transparent'
-                    }
-                  ]}
-                  placeholder="누구에게 전달할까요? (예: 팀장님, 동료들)"
-                  placeholderTextColor={colors.text.secondary}
-                  value={formData.recipient}
-                  onChangeText={(text) => handleInputChange('recipient', text)}
-                  maxLength={30}
-                />
-                {errors.recipient && (
-                  <Text style={[styles.errorText, { color: colors.primary.coral }]}>
-                    {errors.recipient}
-                  </Text>
-                )}
-              </View>
-
-              {/* 보상 입력 */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
-                  보상 <Text style={{ color: colors.primary.coral }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: colors.background.card,
-                      color: colors.text.primary,
-                      borderColor: errors.reward ? colors.primary.coral : 'transparent'
-                    }
-                  ]}
-                  placeholder="어떤 보상을 할까요? (예: 점심 사기, 커피 사기)"
-                  placeholderTextColor={colors.text.secondary}
-                  value={formData.reward}
-                  onChangeText={(text) => handleInputChange('reward', text)}
-                  maxLength={20}
-                />
-                {errors.reward && (
-                  <Text style={[styles.errorText, { color: colors.primary.coral }]}>
-                    {errors.reward}
-                  </Text>
-                )}
-              </View>
-
-              {/* 반성 내용 입력 */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
-                  반성 내용 <Text style={{ color: colors.primary.coral }}>*</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textArea,
-                    {
-                      backgroundColor: colors.background.card,
-                      color: colors.text.primary,
-                      borderColor: errors.content ? colors.primary.coral : 'transparent'
-                    }
-                  ]}
-                  placeholder="무엇을 반성하고, 어떻게 개선할 것인지 구체적으로 작성해주세요&#10;(최소 10자 이상)"
-                  placeholderTextColor={colors.text.secondary}
-                  value={formData.content}
-                  onChangeText={(text) => handleInputChange('content', text)}
-                  multiline
-                  numberOfLines={6}
-                  textAlignVertical="top"
-                  maxLength={500}
-                />
-                <View style={styles.textCountContainer}>
-                  {errors.content && (
-                    <Text style={[styles.errorText, { color: colors.primary.coral }]}>
-                      {errors.content}
-                    </Text>
-                  )}
-                  <Text style={[styles.textCount, { color: colors.text.secondary }]}>
-                    {formData.content.length}/500
-                  </Text>
-                </View>
-              </View>
+              )}
             </View>
 
-            {/* 미리보기 섹션 */}
-            {renderPreview()}
+            {/* 전달 대상 입력 */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
+                전달 대상 <Text style={{ color: colors.primary.coral }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.background.card,
+                    color: colors.text.primary,
+                    borderColor: errors.recipient ? colors.primary.coral : 'transparent'
+                  }
+                ]}
+                placeholder="누구에게 전달할까요? (예: 팀장님, 동료들)"
+                placeholderTextColor={colors.text.secondary}
+                value={formData.recipient}
+                onChangeText={(text) => handleInputChange('recipient', text)}
+                maxLength={30}
+              />
+              {errors.recipient && (
+                <Text style={[styles.errorText, { color: colors.primary.coral }]}>
+                  {errors.recipient}
+                </Text>
+              )}
+            </View>
+
+            {/* 보상 입력 */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
+                보상 <Text style={{ color: colors.primary.coral }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.background.card,
+                    color: colors.text.primary,
+                    borderColor: errors.reward ? colors.primary.coral : 'transparent'
+                  }
+                ]}
+                placeholder="어떤 보상을 할까요? (예: 점심 사기, 커피 사기)"
+                placeholderTextColor={colors.text.secondary}
+                value={formData.reward}
+                onChangeText={(text) => handleInputChange('reward', text)}
+                maxLength={20}
+              />
+              {errors.reward && (
+                <Text style={[styles.errorText, { color: colors.primary.coral }]}>
+                  {errors.reward}
+                </Text>
+              )}
+            </View>
+
+            {/* 반성 내용 입력 */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text.primary }]}>
+                반성 내용 <Text style={{ color: colors.primary.coral }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.background.card,
+                    color: colors.text.primary,
+                    borderColor: errors.content ? colors.primary.coral : 'transparent'
+                  }
+                ]}
+                placeholder="무엇을 반성하고, 어떻게 개선할 것인지 구체적으로 작성해주세요&#10;(최소 10자 이상)"
+                placeholderTextColor={colors.text.secondary}
+                value={formData.content}
+                onChangeText={(text) => handleInputChange('content', text)}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+                maxLength={500}
+              />
+              <View style={styles.textCountContainer}>
+                {errors.content && (
+                  <Text style={[styles.errorText, { color: colors.primary.coral }]}>
+                    {errors.content}
+                  </Text>
+                )}
+                <Text style={[styles.textCount, { color: colors.text.secondary }]}>
+                  {formData.content.length}/500
+                </Text>
+              </View>
+            </View>
           </View>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+
+          {/* 미리보기 섹션 */}
+          {renderPreview()}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -371,8 +381,6 @@ const styles = StyleSheet.create({
   content: {
     padding: dimensions.spacing.lg,
   },
-
-  // 폼 섹션
   formSection: {
     marginBottom: dimensions.spacing.xl,
   },
@@ -418,8 +426,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.regular,
     marginTop: dimensions.spacing.xs,
   },
-
-  // 미리보기 섹션
   previewSection: {
     marginBottom: dimensions.spacing.xl,
   },

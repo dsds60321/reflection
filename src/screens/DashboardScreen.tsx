@@ -1,4 +1,4 @@
-import React, { useState , useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
-import { ReflectionDetailModal } from '../components/reflection/ReflectionDetailModal';
-import { PraiseDetailModal } from '../components/praise/PraiseDetailModal';
+import { useNavigation } from '@react-navigation/native';
 import { Calendar } from '../components/common/Calendar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColors } from '../hooks/useColors';
@@ -17,6 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { typography } from '../styles/typography';
 import { dimensions } from '../styles/dimensions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
 
 // 반성문 관련 데이터
 const MOCK_REFLECTIONS = [
@@ -92,34 +92,19 @@ const MOCK_PRAISES = [
 export const DashboardScreen: React.FC = () => {
   const colors = useColors();
   const { theme, toggleTheme } = useTheme();
+  const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState<'reflections' | 'praises'>('reflections');
-  const [isWeekView, setIsWeekView] = useState(false); // 주/월 단위 보기 상태 추가
-
-  // 통합된 모달 상태
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isWeekView, setIsWeekView] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedReflection, setSelectedReflection] = useState<typeof MOCK_REFLECTIONS[0] | null>(null);
-  const [selectedPraise, setSelectedPraise] = useState<typeof MOCK_PRAISES[0] | null>(null);
 
-  // 반성문 클릭 핸들러
+// 반성문 클릭 핸들러
   const handleReflectionPress = (item: typeof MOCK_REFLECTIONS[0]) => {
-    setSelectedReflection(item);
-    setSelectedPraise(null);
-    setIsModalVisible(true);
+    navigation.navigate('ReflectionDetail', { reflection: item });
   };
 
   // 칭찬 클릭 핸들러
   const handlePraisePress = (item: typeof MOCK_PRAISES[0]) => {
-    setSelectedPraise(item);
-    setSelectedReflection(null);
-    setIsModalVisible(true);
-  };
-
-  // 통합 모달 닫기 핸들러
-  const handleModalClose = () => {
-    setIsModalVisible(false);
-    setSelectedReflection(null);
-    setSelectedPraise(null);
+    navigation.navigate('PraiseDetail', { praise: item });
   };
 
   const filteredReflections = useMemo(() => {
@@ -314,6 +299,31 @@ export const DashboardScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const renderListHeader = () => (
+    <View style={styles.listHeader}>
+      <Text style={[styles.listTitle, { color: colors.text.primary }]}>
+        {selectedDate && (
+          <Text style={[styles.datePrefix, { color: colors.primary.coral }]}>
+            {new Date(selectedDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+          </Text>
+        )}
+        {activeTab === 'reflections' ? '반성문 목록' : '칭찬 목록'}
+      </Text>
+      <TouchableOpacity
+        onPress={() => {
+          if (activeTab === 'reflections') {
+            navigation.navigate('ReflectionForm', { mode: 'create' });
+          } else {
+            navigation.navigate('PraiseForm', { mode: 'create' });
+          }
+        }}
+      >
+        <Text style={[styles.addButton, { color: colors.text.secondary }]}>+</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+
   const renderCurrentList = () => {
     const currentItems = activeTab === 'reflections' ? filteredReflections : filteredPraises;
 
@@ -338,19 +348,7 @@ export const DashboardScreen: React.FC = () => {
 
     return (
       <View style={styles.listContainer}>
-        <View style={styles.listHeader}>
-          <Text style={[styles.listTitle, { color: colors.text.primary }]}>
-            {selectedDate && (
-              <Text style={[styles.datePrefix, { color: colors.primary.coral }]}>
-                {new Date(selectedDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-              </Text>
-            )}
-            {activeTab === 'reflections' ? '반성문 목록' : '칭찬 목록'}
-          </Text>
-          <TouchableOpacity>
-            <Text style={[styles.addButton, { color: colors.text.secondary }]}>+</Text>
-          </TouchableOpacity>
-        </View>
+        {renderListHeader()}
         {activeTab === 'reflections'
           ? filteredReflections.map(renderReflectionItem)
           : filteredPraises.map(renderPraiseItem)
@@ -358,6 +356,7 @@ export const DashboardScreen: React.FC = () => {
       </View>
     );
   };
+
 
 
   return (
@@ -383,27 +382,10 @@ export const DashboardScreen: React.FC = () => {
           {renderCurrentList()}
         </View>
       </ScrollView>
-
-      {/* 반성문 모달 */}
-      {selectedReflection && (
-        <ReflectionDetailModal
-          visible={isModalVisible}
-          onClose={handleModalClose}
-          reflection={selectedReflection}
-        />
-      )}
-
-      {/* 칭찬 모달 */}
-      {selectedPraise && (
-        <PraiseDetailModal
-          visible={isModalVisible}
-          onClose={handleModalClose}
-          praise={selectedPraise}
-        />
-      )}
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
