@@ -166,12 +166,8 @@ export const LoginScreen: React.FC = () => {
             <View style={[styles.logoContainer, { backgroundColor: colors.primary.yellow }]}>
               <View style={styles.logoIcons}>
                 <Image
-                  source={require("../assets/images/devil.png")}
-                  style={[styles.logoIcon, styles.leftIcon]}
-                />
-                <Image
-                  source={require("../assets/images/angel.png")}
-                  style={[styles.logoIcon, styles.rightIcon]}
+                  source={require("../assets/images/post.png")}
+                  style={[styles.logoIcon]}
                 />
               </View>
             </View>
@@ -377,8 +373,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoIcon: {
-    width: 28,
-    height: 28,
+    width: 80,
+    height: 80,
   },
   leftIcon: {
     marginRight: 4,

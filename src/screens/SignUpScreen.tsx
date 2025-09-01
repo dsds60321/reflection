@@ -357,12 +357,8 @@ export const SignUpScreen: React.FC = () => {
               {step === 'form' ? (
                 <View style={styles.logoIcons}>
                   <Image
-                    source={require("../assets/images/devil.png")}
-                    style={[styles.logoIcon, styles.leftIcon]}
-                  />
-                  <Image
-                    source={require("../assets/images/angel.png")}
-                    style={[styles.logoIcon, styles.rightIcon]}
+                    source={require("../assets/images/post.png")}
+                    style={[styles.logoIcon]}
                   />
                 </View>
               ) : (
@@ -816,8 +812,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoIcon: {
-    width: 24,
-    height: 24,
+    width: 80,
+    height: 80,
   },
   leftIcon: {
     marginRight: 3,
