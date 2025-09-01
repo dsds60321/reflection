@@ -16,6 +16,9 @@ import { PraiseFormScreen } from '../screens/PraiseFormScreen.tsx';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../context/ThemeContext';
 import { InviteFriendScreen } from '../screens/InviteFriendScreen.tsx';
+import { PraiseScreen } from '../screens/PraiseScreen.tsx';
+import { EditProfileScreen } from '../screens/EditProfileScreen.tsx';
+import { NoticeScreen } from '../screens/NoticeScreen.tsx';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -46,6 +49,27 @@ const ReflectionStack = () => {
   );
 };
 
+const PraiseStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="PraiseMain" component={PraiseScreen} />
+      <Stack.Screen name="PraiseDetail" component={PraiseDetailScreen} />
+      <Stack.Screen name="PraiseForm" component={PraiseFormScreen} />
+    </Stack.Navigator>
+  );
+};
+
+const MyStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MyMain" component={MyScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="Notice" component={NoticeScreen} />
+    </Stack.Navigator>
+  );
+};
+
+
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
   const { theme } = useTheme();
   const themeColor = theme === 'light' ? '#000' : '#fff';
@@ -54,6 +78,7 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
     switch (name) {
       case 'Feed': return <Ionicons name="planet-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       case 'Reflection': return <Ionicons name="document-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
+      case 'Praise': return <Ionicons name="gift-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       case 'Friends': return <Ionicons name="people-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       case 'My': return <Ionicons name="person-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
       default: return <Ionicons name="planet-outline" size={20} color={themeColor} style={{ margin: 10 }} />;
@@ -114,13 +139,18 @@ export const AppNavigator: React.FC = () => {
           options={{ tabBarLabel: '반성문' }}
         />
         <Tab.Screen
+          name="Praise"
+          component={PraiseStack}
+          options={{ tabBarLabel: '칭찬' }}
+        />
+        <Tab.Screen
           name="Friends"
           component={FriendsScreen}
           options={{ tabBarLabel: '친구' }}
         />
         <Tab.Screen
           name="My"
-          component={MyScreen}
+          component={MyStack}
           options={{ tabBarLabel: 'My' }}
         />
       </Tab.Navigator>

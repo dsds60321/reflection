@@ -287,9 +287,7 @@ export const FriendsScreen: React.FC = () => {
   const renderQuickInvite = () => {
     const inviteMethods: InviteMethod[] = [
       { type: 'sms', label: '문자', icon: 'message-text', color: '#34C759' },
-      { type: 'email', label: '이메일', icon: 'email', color: '#007AFF' },
-      { type: 'kakao', label: '카카오톡', icon: 'chat', color: '#FEE500' },
-      { type: 'facebook', label: '페이스북', icon: 'facebook', color: '#1877F2' },
+      { type: 'email', label: '이메일', icon: 'email', color: '#007AFF' }
     ];
 
     return (

@@ -9,26 +9,58 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAlert } from '../context/AlertContext';
 import { useColors } from '../hooks/useColors';
 import { typography } from '../styles/typography';
 import { dimensions } from '../styles/dimensions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+interface PraiseDetailScreenProps {
+  route: {
+    params: {
+      praise: {
+        id: string;
+        title: string;
+        content: string;
+        author: string;
+        recipient: string;
+        date: string;
+        status: 'completed' | 'pending';
+      };
+    };
+  };
+}
+
 export const PraiseDetailScreen: React.FC = () => {
   const colors = useColors();
   const navigation = useNavigation();
   const route = useRoute();
   const { praise } = route.params as { praise: any };
+  const { showAlert } = useAlert();
 
   const handleEdit = () => {
     navigation.navigate('PraiseForm', { praise, mode: 'edit' });
   };
 
   const handleDelete = () => {
-    // TODO: 삭제 로직 구현
-    console.log('Delete praise:', praise.id);
-    navigation.goBack();
+    showAlert({
+      title: '칭찬 삭제',
+      message: '이 칭찬을 삭제하시겠습니까?\n삭제된 내용은 복구할 수 없습니다.',
+      icon: 'delete',
+      iconColor: colors.primary.coral,
+      buttons: [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: () => {
+            console.log('Delete praise:', praise.id);
+            navigation.goBack();
+          },
+        },
+      ],
+    });
   };
 
   return (
@@ -45,7 +77,7 @@ export const PraiseDetailScreen: React.FC = () => {
               style={styles.headerIcon}
             />
           </View>
-          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>칭찬</Text>
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>칭찬하기</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -59,7 +91,7 @@ export const PraiseDetailScreen: React.FC = () => {
 
         {/* Author Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>보낸 사람</Text>
+          <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>글쓴이</Text>
           <View style={styles.authorContainer}>
             <View style={[styles.authorAvatar, { backgroundColor: colors.background.cardSecondary }]}>
               <Ionicons name="person" size={20} color={colors.text.white} />
@@ -69,16 +101,14 @@ export const PraiseDetailScreen: React.FC = () => {
         </View>
 
         {/* Recipient Section */}
-        {praise.recipient && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>받는 사람</Text>
-            <Text style={[styles.recipientText, { color: colors.text.primary }]}>{praise.recipient}</Text>
-          </View>
-        )}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>칭찬 대상</Text>
+          <Text style={[styles.recipientText, { color: colors.text.primary }]}>{praise.recipient}</Text>
+        </View>
 
         {/* Content Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>내용</Text>
+          <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>칭찬 내용</Text>
           <View style={[styles.contentContainer, { backgroundColor: colors.background.card }]}>
             <Text style={[styles.contentText, { color: colors.text.primary }]}>
               {praise.content}
@@ -110,7 +140,7 @@ export const PraiseDetailScreen: React.FC = () => {
         {/* Date Section */}
         <View style={[styles.section, styles.lastSection]}>
           <Text style={[styles.sectionLabel, { color: colors.text.secondary }]}>날짜</Text>
-          <Text style={[styles.dateText, { color: colors.text.primary }]}>{praise.displayDate}</Text>
+          <Text style={[styles.dateText, { color: colors.text.primary }]}>{praise.date}</Text>
         </View>
       </ScrollView>
 
@@ -158,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerRight: {
-    width: 40,
+    width: 40, // backButton과 같은 너비로 중앙 정렬
   },
   iconContainer: {
     width: 32,

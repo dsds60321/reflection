@@ -81,8 +81,8 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   // 오늘 날짜 색상을 테마에 맞게 계산
   const todayColors = useMemo(() => ({
-    backgroundColor: theme === 'dark' ? colors.text.white : colors.text.primary,
-    textColor: theme === 'dark' ? colors.text.primary : colors.text.white,
+    backgroundColor: theme === 'dark' ? colors.text.primary : colors.text.primary,
+    textColor: theme === 'dark' ? '#000' : colors.text.white,
   }), [theme, colors]);
 
   // RNCalendar 테마를 동적으로 생성
