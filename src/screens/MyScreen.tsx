@@ -17,6 +17,7 @@ import { typography } from '../styles/typography';
 import { dimensions } from '../styles/dimensions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAuth } from '../context/AuthContext.tsx';
 
 // 사용자 정보 (임시 데이터)
 const USER_INFO = {
@@ -34,6 +35,7 @@ export const MyScreen: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const navigation = useNavigation();
   const { showAlert } = useAlert();
+  const { logout, user } = useAuth(); // AuthContext 사용
 
   // 알림 설정 상태
   const [pushNotification, setPushNotification] = useState(true);
@@ -63,9 +65,13 @@ export const MyScreen: React.FC = () => {
         {
           text: '로그아웃',
           style: 'destructive',
-          onPress: () => {
-            console.log('User logged out');
-            // TODO: 실제 로그아웃 로직 구현
+          onPress: async () => {
+            try {
+              await logout();
+              // AuthContext에서 자동으로 로그인 화면으로 이동됨
+            } catch (error) {
+              console.error('Logout error:', error);
+            }
           },
         },
       ],
@@ -98,21 +104,17 @@ export const MyScreen: React.FC = () => {
     <View style={[styles.section, { backgroundColor: colors.background.card }]}>
       <View style={styles.profileContainer}>
         <View style={[styles.profileImageContainer, { backgroundColor: colors.background.cardSecondary }]}>
-          {USER_INFO.profileImage ? (
-            <Image source={{ uri: USER_INFO.profileImage }} style={styles.profileImage} />
-          ) : (
-            <Ionicons name="person" size={32} color={colors.text.secondary} />
-          )}
+          <Ionicons name="person" size={32} color={colors.text.secondary} />
         </View>
         <View style={styles.profileInfo}>
           <Text style={[styles.profileName, { color: colors.text.primary }]}>
-            {USER_INFO.name}
+            {user?.name || '사용자'}
           </Text>
           <Text style={[styles.profileEmail, { color: colors.text.secondary }]}>
-            {USER_INFO.email}
+            {user?.email || 'user@example.com'}
           </Text>
           <Text style={[styles.profileJoinDate, { color: colors.text.secondary }]}>
-            가입일: {USER_INFO.joinDate}
+            가입일: 2024.01.15
           </Text>
         </View>
         <TouchableOpacity
@@ -125,6 +127,7 @@ export const MyScreen: React.FC = () => {
       </View>
     </View>
   );
+
 
   // 알림 설정 섹션 렌더링
   const renderNotificationSection = () => (
