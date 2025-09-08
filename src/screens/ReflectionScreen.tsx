@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,157 +8,394 @@ import {
   StatusBar,
   Image,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColors } from '../hooks/useColors.ts';
-import { useTheme } from '../context/ThemeContext.tsx';
-import { typography } from '../styles/typography.ts';
-import { dimensions } from '../styles/dimensions.ts';
-import { Calendar } from '../components/common/Calendar.tsx';
+import { useColors } from '../hooks/useColors';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { typography } from '../styles/typography';
+import { dimensions } from '../styles/dimensions';
+import { Calendar } from '../components/common/Calendar';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-
-// 더 많은 반성문 데이터
-const MOCK_REFLECTIONS = [
-  {
-    id: '1',
-    title: '업무 중 실수에 대한 반성',
-    content: '오늘 중요한 프레젠테이션 중에 실수를 했습니다. 준비가 부족했던 것 같습니다. 다음번에는 더 철저히 준비하고, 동료들과 미리 리허설을 해보겠습니다.',
-    author: '홍길동',
-    recipient: '팀장님',
-    date: '2025-08-27',
-    displayDate: '2025년 8월 27일',
-    reward: '점심 사기',
-    status: 'pending' as const,
-  },
-  {
-    id: '2',
-    title: '회의 시간에 집중하지 못함',
-    content: '이번 주 팀 회의에서 계속 딴생각을 했습니다. 동료들이 발표하는 동안 집중하지 못해서 중요한 내용을 놓쳤습니다.',
-    author: '김영희',
-    recipient: '팀원들',
-    date: '2025-08-26',
-    displayDate: '2025년 8월 26일',
-    reward: '커피 사기',
-    status: 'completed' as const,
-  },
-  {
-    id: '3',
-    title: '프로젝트 지연에 대한 반성',
-    content: '담당하고 있던 프로젝트의 마감일을 지키지 못했습니다. 일정 관리가 미흡했고, 중간에 발생한 문제들을 제때 공유하지 못했습니다.',
-    author: '이민호',
-    recipient: '프로젝트 팀',
-    date: '2025-08-25',
-    displayDate: '2025년 8월 25일',
-    reward: '디저트 사기',
-    status: 'pending' as const,
-  },
-  {
-    id: '4',
-    title: '동료와의 의견 충돌',
-    content: '동료와 업무 방식에 대해 의견이 달라서 감정적으로 대응했습니다. 더 차분하게 이야기했어야 했는데 후회됩니다.',
-    author: '박서준',
-    recipient: '팀원들',
-    date: '2025-08-24',
-    displayDate: '2025년 8월 24일',
-    reward: '간식 사기',
-    status: 'completed' as const,
-  },
-  {
-    id: '5',
-    title: '고객 응대 실수',
-    content: '고객의 요구사항을 제대로 파악하지 못해서 잘못된 정보를 전달했습니다. 더 신중하게 확인하고 답변했어야 했습니다.',
-    author: '최지우',
-    recipient: '고객',
-    date: '2025-08-23',
-    displayDate: '2025년 8월 23일',
-    reward: '음료 사기',
-    status: 'pending' as const,
-  },
-  {
-    id: '6',
-    title: '코드 리뷰 부족',
-    content: '급하다는 이유로 코드 리뷰를 대충했습니다. 그 결과 나중에 버그가 발견되어 팀에 피해를 주었습니다.',
-    author: '정한솔',
-    recipient: '개발팀',
-    date: '2025-08-22',
-    displayDate: '2025년 8월 22일',
-    reward: '치킨 사기',
-    status: 'completed' as const,
-  },
-];
-
-// 날짜별로 반성문을 그룹화하는 함수
-const groupReflectionsByDate = (reflections: typeof MOCK_REFLECTIONS) => {
-  return reflections.reduce((acc, reflection) => {
-    const date = reflection.date;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(reflection);
-    return acc;
-  }, {} as Record<string, typeof MOCK_REFLECTIONS>);
-};
+import {
+  reflectionApi,
+  Reflection
+} from '../service/ReflectionApiService';
 
 export const ReflectionScreen: React.FC = () => {
   const colors = useColors();
   const { theme, toggleTheme } = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuth();
 
   // 상태 관리
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [isWeekView, setIsWeekView] = useState(false); // 주/월 단위 보기 상태 추가
+  const [isWeekView, setIsWeekView] = useState(false);
+  const [reflections, setReflections] = useState<Reflection[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    weekReference: new Date().toISOString().split('T')[0]
+  });
+
+  // 월별 데이터 로드
+  const loadMonthlyData = useCallback(async (year: number, month: number) => {
+    setLoading(true);
+    try {
+      const response = await reflectionApi.getMonthlyReflections({
+        year,
+        month,
+      });
+
+      console.log('---- monthly response', response);
+
+      if (response.success) {
+        // data가 배열인 경우와 객체인 경우 모두 처리
+        if (Array.isArray(response.data)) {
+          setReflections(response.data);
+          console.log('월별 데이터 로드 완료 (배열):', {
+            period: `${year}-${month}`,
+            count: response.data.length,
+          });
+        } else if (response.data && response.data.reflections) {
+          setReflections(response.data.reflections);
+          console.log('월별 데이터 로드 완료 (객체):', {
+            period: `${year}-${month}`,
+            count: response.data.total_count || response.data.reflections.length,
+            range: response.data.period_info
+          });
+        } else {
+          // 데이터가 없는 경우
+          setReflections([]);
+          console.log('월별 데이터 없음:', {
+            period: `${year}-${month}`,
+            message: response.message || '데이터가 없습니다.'
+          });
+        }
+      } else {
+        console.error('월별 데이터 로드 실패:', response.error);
+        setReflections([]);
+      }
+    } catch (error) {
+      console.error('월별 API 요청 실패:', error);
+      setReflections([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
 
-  const handleReflectionSubmit = (formData: { title: string; content: string; recipient: string; reward: string; }) => {
-    console.log('새 반성문 등록:', formData);
-    // TODO: 실제 API 호출로 반성문 저장
-    // 성공적으로 저장되면 목록을 새로고침하거나 상태를 업데이트
-  };
+  // 주별 데이터 로드
+  const loadWeeklyData = useCallback(async (referenceDate: string) => {
+    setLoading(true);
+    try {
+      const response = await reflectionApi.getWeeklyReflections({
+        reference_date: referenceDate,
+      });
 
-  // 검색 및 필터링
+      console.log('---- weekly response', response);
+
+      if (response.success) {
+        // data가 배열인 경우와 객체인 경우 모두 처리
+        if (Array.isArray(response.data)) {
+          setReflections(response.data);
+          console.log('주별 데이터 로드 완료 (배열):', {
+            reference: referenceDate,
+            count: response.data.length,
+          });
+        } else if (response.data && response.data.reflections) {
+          setReflections(response.data.reflections);
+          console.log('주별 데이터 로드 완료 (객체):', {
+            reference: referenceDate,
+            count: response.data.total_count || response.data.reflections.length,
+            range: response.data.period_info
+          });
+        } else {
+          // 데이터가 없는 경우
+          setReflections([]);
+          console.log('주별 데이터 없음:', {
+            reference: referenceDate,
+            message: response.message || '데이터가 없습니다.'
+          });
+        }
+      } else {
+        console.error('주별 데이터 로드 실패:', response.error);
+        setReflections([]);
+      }
+    } catch (error) {
+      console.error('주별 API 요청 실패:', error);
+      setReflections([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 일별 데이터 로드
+  const loadDailyData = useCallback(async (date: string) => {
+    setLoading(true);
+    try {
+      const response = await reflectionApi.getDailyReflections({
+        date
+      });
+
+      console.log('---- daily response', response);
+
+      if (response.success) {
+        // data가 배열인 경우와 객체인 경우 모두 처리
+        if (Array.isArray(response.data)) {
+          setReflections(response.data);
+          console.log('일별 데이터 로드 완료 (배열):', {
+            date,
+            count: response.data.length,
+          });
+        } else if (response.data && response.data.reflections) {
+          setReflections(response.data.reflections);
+          console.log('일별 데이터 로드 완료 (객체):', {
+            date,
+            count: response.data.total_count || response.data.reflections.length
+          });
+        } else {
+          // 데이터가 없는 경우
+          setReflections([]);
+          console.log('일별 데이터 없음:', {
+            date,
+            message: response.message || '데이터가 없습니다.'
+          });
+        }
+      } else {
+        console.error('일별 데이터 로드 실패:', response.error);
+        setReflections([]);
+      }
+    } catch (error) {
+      console.error('일별 API 요청 실패:', error);
+      setReflections([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    loadMonthlyData(currentPeriod.year, currentPeriod.month);
+  }, [loadMonthlyData, currentPeriod.year, currentPeriod.month]);
+
+  // 주간 변경 핸들러
+  const handleWeekChange = useCallback(
+    async (weekInfo: { weekStart: string; weekEnd: string; referenceDate: string }) => {
+      console.log('주간 변경 >>>> :', weekInfo);
+
+      try {
+        const response = await reflectionApi.getWeeklyReflections({
+          reference_date: weekInfo.referenceDate
+        });
+
+        console.log('---- weekly response', response);
+
+        if (response.success) {
+          // data가 배열인 경우와 객체인 경우 모두 처리
+          if (Array.isArray(response.data)) {
+            setReflections(response.data);
+            console.log('주간 변경 - 데이터 로드 완료 (배열):', {
+              reference: weekInfo.referenceDate,
+              weekRange: `${weekInfo.weekStart} ~ ${weekInfo.weekEnd}`,
+              count: response.data.length,
+            });
+          } else if (response.data && response.data.reflections) {
+            setReflections(response.data.reflections);
+            console.log('주간 변경 - 데이터 로드 완료 (객체):', {
+              reference: weekInfo.referenceDate,
+              weekRange: `${weekInfo.weekStart} ~ ${weekInfo.weekEnd}`,
+              count: response.data.total_count || response.data.reflections.length,
+              range: response.data.period_info
+            });
+          } else {
+            // 데이터가 없는 경우
+            setReflections([]);
+            console.log('주간 변경 - 데이터 없음:', {
+              reference: weekInfo.referenceDate,
+              message: response.message || '데이터가 없습니다.'
+            });
+          }
+        } else {
+          console.error('주간 변경 - 데이터 로드 실패:', response.error);
+          setReflections([]);
+        }
+      } catch (error) {
+        console.error('주간 변경 - API 요청 실패:', error);
+        setReflections([]);
+      }
+
+      // 현재 기간 업데이트
+      setCurrentPeriod(prev => ({
+        ...prev,
+        weekReference: weekInfo.referenceDate,
+      }));
+
+      // 선택된 날짜 초기화
+      setSelectedDate(null);
+    },
+    []
+  );
+
+
+  // 월 변경 핸들러
+  const handleMonthChange = useCallback(
+    async (month: { year: number; month: number; dateString: string }) => {
+      console.log('월 변경 >>>> :', month);
+
+      // 월간 모드일 때만 월별 데이터 로드
+      if (!isWeekView) {
+        try {
+          const response = await reflectionApi.getMonthlyReflections({
+            year: month.year,
+            month: month.month,
+          });
+
+          console.log('---- monthly response', response);
+
+          if (response.success) {
+            // data가 배열인 경우와 객체인 경우 모두 처리
+            if (Array.isArray(response.data)) {
+              setReflections(response.data);
+              console.log('월 변경 - 데이터 로드 완료 (배열):', {
+                period: `${month.year}-${month.month}`,
+                count: response.data.length,
+              });
+            } else if (response.data && response.data.reflections) {
+              setReflections(response.data.reflections);
+              console.log('월 변경 - 데이터 로드 완료 (객체):', {
+                period: `${month.year}-${month.month}`,
+                count: response.data.total_count || response.data.reflections.length,
+              });
+            } else {
+              // 데이터가 없는 경우
+              setReflections([]);
+              console.log('월 변경 - 데이터 없음:', {
+                period: `${month.year}-${month.month}`,
+                message: response.message || '데이터가 없습니다.'
+              });
+            }
+          } else {
+            console.error('월 변경 - 데이터 로드 실패:', response.error);
+            setReflections([]);
+          }
+        } catch (error) {
+          console.error('월 변경 - API 요청 실패:', error);
+          setReflections([]);
+        }
+      }
+
+      setCurrentPeriod({
+        year: month.year,
+        month: month.month,
+        weekReference: month.dateString,
+      });
+
+      // 선택된 날짜 초기화
+      setSelectedDate(null);
+
+      // 주간 모드일 때는 해당 월의 첫 주 데이터 로드
+      if (isWeekView) {
+        const firstDayOfMonth = `${month.year}-${month.month
+          .toString()
+          .padStart(2, '0')}-01`;
+        loadWeeklyData(firstDayOfMonth);
+      }
+    },
+    [isWeekView, loadWeeklyData]
+  );
+
+
+
+
+  // 날짜 선택 핸들러
+  const handleDatePress = useCallback((dateString: string) => {
+    console.log('날짜 선택:', dateString);
+
+    if (selectedDate === dateString) {
+      // 같은 날짜 다시 클릭 시 선택 해제하고 원래 모드로 복귀
+      setSelectedDate(null);
+
+      if (isWeekView) {
+        loadWeeklyData(currentPeriod.weekReference);
+      } else {
+        loadMonthlyData(currentPeriod.year, currentPeriod.month);
+      }
+    } else {
+      // 새 날짜 선택 시 해당 일의 데이터만 로드
+      setSelectedDate(dateString);
+      loadDailyData(dateString);
+    }
+  }, [selectedDate, isWeekView, currentPeriod, loadWeeklyData, loadMonthlyData, loadDailyData]);
+
+  // 주/월 모드 토글 핸들러
+  const handleWeekModeToggle = useCallback(() => {
+    console.log('주/월 모드 토글:', !isWeekView ? '주간' : '월간');
+
+    const newIsWeekView = !isWeekView;
+    setIsWeekView(newIsWeekView);
+    setSelectedDate(null);
+
+    if (newIsWeekView) {
+      // 주간 모드로 전환
+      loadWeeklyData(currentPeriod.weekReference);
+    } else {
+      // 월간 모드로 전환
+      loadMonthlyData(currentPeriod.year, currentPeriod.month);
+    }
+  }, [isWeekView, currentPeriod, loadWeeklyData, loadMonthlyData]);
+
+  // 검색 필터링
   const filteredReflections = useMemo(() => {
-    let filtered = MOCK_REFLECTIONS;
+    if (!searchText.trim()) return reflections;
 
-    // 텍스트 검색
-    if (searchText) {
-      filtered = filtered.filter(item =>
-        item.title.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.content.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.author.toLowerCase().includes(searchText.toLowerCase())
-      );
-    }
+    const searchLower = searchText.toLowerCase();
+    return reflections.filter(item =>
+      item.title.toLowerCase().includes(searchLower) ||
+      item.content.toLowerCase().includes(searchLower) ||
+      item.author_name?.toLowerCase().includes(searchLower)
+    );
+  }, [reflections, searchText]);
 
-    // 날짜 필터링
-    if (selectedDate) {
-      filtered = filtered.filter(item => item.date === selectedDate);
-    }
-
-    return filtered;
-  }, [searchText, selectedDate]);
-
-  // 날짜별 그룹화
-  const groupedReflections = useMemo(() => {
-    return groupReflectionsByDate(filteredReflections);
-  }, [filteredReflections]);
-
-  // 반성문 클릭 핸들러
-  const handleReflectionPress = (item: typeof MOCK_REFLECTIONS[0]) => {
-    navigation.navigate('ReflectionDetail', { reflection: item });
-  };
-
-  // 날짜에 반성문이 있는지 확인하는 함수
-  const hasReflectionsForDate = (dateString: string) => {
-    return MOCK_REFLECTIONS.some(r => r.date === dateString);
-  };
+  // 날짜에 반성문이 있는지 확인하는 함수 (created_at 기준)
+  const hasReflectionsForDate = useCallback((dateString: string) => {
+    return reflections.some(r => r.createdAt.startsWith(dateString));
+  }, [reflections]);
 
   // 검색 초기화
   const handleClearSearch = () => {
     setSearchText('');
     setSelectedDate(null);
+
+    if (isWeekView) {
+      loadWeeklyData(currentPeriod.weekReference);
+    } else {
+      loadMonthlyData(currentPeriod.year, currentPeriod.month);
+    }
   };
+
+  // 반성문 클릭 핸들러
+  const handleReflectionPress = (item: Reflection) => {
+    navigation.navigate('ReflectionDetail', { reflection: item });
+  };
+
+  // 날짜별로 반성문을 그룹화하는 함수 (created_at 기준)
+  const groupReflectionsByDate = useMemo(() => {
+    return filteredReflections.reduce((acc, reflection) => {
+      const date = reflection.createdAt.split(' ')[0]; // "2024-01-15" 추출
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(reflection);
+      return acc;
+    }, {} as Record<string, Reflection[]>);
+  }, [filteredReflections]);
 
   // 헤더 렌더링
   const renderHeader = () => (
@@ -179,7 +416,6 @@ export const ReflectionScreen: React.FC = () => {
       </View>
     </View>
   );
-
 
   // 검색 바 렌더링
   const renderSearchBar = () => (
@@ -207,69 +443,84 @@ export const ReflectionScreen: React.FC = () => {
     <Calendar
       variant="list"
       selectedDate={selectedDate}
-      onDatePress={(dateString) => {
-        setSelectedDate(selectedDate === dateString ? null : dateString);
-      }}
-      onMonthChange={(month) => {
-        console.log('Month changed to:', month);
-      }}
+      onDatePress={handleDatePress}
+      onMonthChange={handleMonthChange}
+      onWeekChange={handleWeekChange}
       subtext={`총 ${filteredReflections.length}개의 반성문`}
       hasDataForDate={hasReflectionsForDate}
-      initialDate="2025-08-27"
-      onWeekModeToggle={() => setIsWeekView(!isWeekView)}
+      initialDate={`${currentPeriod.year}-${currentPeriod.month.toString().padStart(2, '0')}-01`}
+      onWeekModeToggle={handleWeekModeToggle}
       isWeekView={isWeekView}
     />
   );
 
-
-
   // 반성문 아이템 렌더링
-  const renderReflectionItem = (item: typeof MOCK_REFLECTIONS[0]) => (
-    <TouchableOpacity
-      key={item.id}
-      style={[styles.listItem, { backgroundColor: colors.background.card }]}
-      onPress={() => handleReflectionPress(item)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.itemIcon, { backgroundColor: colors.primary.yellow }]}>
-        <Image
-          source={require("../assets/images/devil.png")}
-          style={styles.itemIconImage}
-        />
-      </View>
-      <View style={styles.itemContent}>
-        <Text style={[styles.itemTitle, { color: colors.text.primary }]}>{item.title}</Text>
-        <Text style={[styles.itemAuthor, { color: colors.text.secondary }]}>
-          {item.author} → {item.recipient}
-        </Text>
-        <Text style={[styles.itemPreview, { color: colors.text.secondary }]} numberOfLines={2}>
-          {item.content}
-        </Text>
-        <View style={styles.itemFooter}>
-          <Text style={[styles.itemDate, { color: colors.text.secondary }]}>{item.displayDate}</Text>
-          <View style={styles.itemActions}>
-            <View style={[styles.actionChip, { backgroundColor: colors.background.cardSecondary }]}>
-              <Text style={[styles.actionText, { color: colors.text.secondary }]}>{item.reward}</Text>
-            </View>
-            <View style={[
-              styles.statusChip,
-              { backgroundColor: item.status === 'completed' ? colors.primary.coral : colors.background.cardSecondary }
-            ]}>
-              <Text style={[
-                styles.statusText,
-                { color: item.status === 'completed' ? colors.text.white : colors.text.secondary }
+  const renderReflectionItem = (item: Reflection) => {
+    const createdDate = new Date(item.createdAt);
+    const displayDate = createdDate.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    return (
+      <TouchableOpacity
+        key={item.idx}
+        style={[styles.listItem, { backgroundColor: colors.background.card }]}
+        onPress={() => handleReflectionPress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.itemIcon, { backgroundColor: colors.primary.yellow }]}>
+          <Image
+            source={require("../assets/images/devil.png")}
+            style={styles.itemIconImage}
+          />
+        </View>
+        <View style={styles.itemContent}>
+          <Text style={[styles.itemTitle, { color: colors.text.primary }]}>{item.title}</Text>
+          <Text style={[styles.itemAuthor, { color: colors.text.secondary }]}>
+            {item.author_name || '나'}
+          </Text>
+          <Text style={[styles.itemPreview, { color: colors.text.secondary }]} numberOfLines={2}>
+            {item.content}
+          </Text>
+          <View style={styles.itemFooter}>
+            <Text style={[styles.itemDate, { color: colors.text.secondary }]}>{displayDate}</Text>
+            <View style={styles.itemActions}>
+              <View style={[styles.actionChip, { backgroundColor: colors.background.cardSecondary }]}>
+                <Text style={[styles.actionText, { color: colors.text.secondary }]}>{item.reward}</Text>
+              </View>
+              <View style={[
+                styles.statusChip,
+                { backgroundColor: item.status === 'approved' ? colors.primary.coral : colors.background.cardSecondary }
               ]}>
-                {item.status === 'completed' ? '완료' : '대기중'}
-              </Text>
+                <Text style={[
+                  styles.statusText,
+                  { color: item.status === 'approved' ? colors.text.white : colors.text.secondary }
+                ]}>
+                  {item.status === 'approved' ? '완료' : '대기중'}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   // 반성문 목록 렌더링
   const renderReflectionsList = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary.coral} />
+          <Text style={[styles.loadingText, { color: colors.text.secondary }]}>
+            반성문을 불러오는 중...
+          </Text>
+        </View>
+      );
+    }
+
     if (filteredReflections.length === 0) {
       return (
         <View style={styles.emptyState}>
@@ -288,10 +539,15 @@ export const ReflectionScreen: React.FC = () => {
 
     if (selectedDate) {
       // 선택된 날짜의 반성문만 표시
+      const selectedDateDisplay = new Date(selectedDate).toLocaleDateString('ko-KR', {
+        month: 'long',
+        day: 'numeric'
+      });
+
       return (
         <View style={styles.listContainer}>
           <Text style={[styles.listTitle, { color: colors.text.primary }]}>
-            {new Date(selectedDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}의 반성문
+            {selectedDateDisplay}의 반성문
           </Text>
           {filteredReflections.map(renderReflectionItem)}
         </View>
@@ -301,16 +557,23 @@ export const ReflectionScreen: React.FC = () => {
     // 날짜별로 그룹화하여 표시
     return (
       <View style={styles.listContainer}>
-        {Object.entries(groupedReflections)
+        {Object.entries(groupReflectionsByDate)
           .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-          .map(([date, reflections]) => (
-            <View key={date} style={styles.dateGroup}>
-              <Text style={[styles.dateGroupTitle, { color: colors.text.primary }]}>
-                {new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-              </Text>
-              {reflections.map(renderReflectionItem)}
-            </View>
-          ))}
+          .map(([date, reflections]) => {
+            const dateDisplay = new Date(date).toLocaleDateString('ko-KR', {
+              month: 'long',
+              day: 'numeric'
+            });
+
+            return (
+              <View key={date} style={styles.dateGroup}>
+                <Text style={[styles.dateGroupTitle, { color: colors.text.primary }]}>
+                  {dateDisplay} ({reflections.length}개)
+                </Text>
+                {reflections.map(renderReflectionItem)}
+              </View>
+            );
+          })}
       </View>
     );
   };
@@ -334,8 +597,6 @@ export const ReflectionScreen: React.FC = () => {
     </SafeAreaView>
   );
 };
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -392,6 +653,17 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: dimensions.spacing.xs,
+  },
+
+  // Loading
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: dimensions.spacing.xl,
+  },
+  loadingText: {
+    marginTop: dimensions.spacing.md,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fontFamily.regular,
   },
 
   // List Section

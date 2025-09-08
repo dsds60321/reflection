@@ -36,6 +36,9 @@ export interface CalendarProps {
   // 월 변경 핸들러
   onMonthChange?: (date: { year: number; month: number; dateString: string }) => void;
 
+  // 주 변경 핸들러
+  onWeekChange?: (date: { weekStart: string; weekEnd: string; referenceDate: string }) => void;
+
   // 통계 정보 (대시보드용)
   stats?: {
     reflectionCount: number;
@@ -65,6 +68,7 @@ export const Calendar: React.FC<CalendarProps> = ({
                                                     variant,
                                                     selectedDate,
                                                     onDatePress,
+                                                    onWeekChange,
                                                     onMonthChange,
                                                     stats,
                                                     subtext,
@@ -196,7 +200,26 @@ export const Calendar: React.FC<CalendarProps> = ({
     const newWeek = new Date(currentWeek);
     newWeek.setDate(currentWeek.getDate() + (direction === 'next' ? 7 : -7));
     setCurrentWeek(newWeek);
+
+    // 주간 변경 시 콜백 호출
+    if (onWeekChange) {
+      // 해당 주의 시작일과 종료일 계산
+      const startOfWeek = new Date(newWeek);
+      const dayOfWeek = newWeek.getDay();
+      const diff = (dayOfWeek === 0 ? 7 : dayOfWeek) - 1; // 월요일 기준
+      startOfWeek.setDate(newWeek.getDate() - diff);
+
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+      onWeekChange({
+        weekStart: startOfWeek.toISOString().split('T')[0],
+        weekEnd: endOfWeek.toISOString().split('T')[0],
+        referenceDate: newWeek.toISOString().split('T')[0]
+      });
+    }
   };
+
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>

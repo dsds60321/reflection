@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +12,6 @@ import { useColors } from '../hooks/useColors';
 import { typography } from '../styles/typography';
 import { dimensions } from '../styles/dimensions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // 공지사항 데이터
 const NOTICES = [
