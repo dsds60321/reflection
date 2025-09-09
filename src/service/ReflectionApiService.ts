@@ -107,37 +107,6 @@ class ReflectionApiService {
 
     return apiClient.get<ReflectionResponse>('/reflections', queryParams);
   }
-
-  // 범위 요청 (공통 엔드포인트)
-  async getReflectionsByRange(params: DateRangeParams): Promise<ApiResponse<ReflectionResponse>> {
-    return apiClient.get<ReflectionResponse>('/reflections', params);
-  }
-
-  // 편의 메서드들
-  async getCurrentMonthReflections(userIdx?: number): Promise<ApiResponse<ReflectionResponse>> {
-    const { currentMonth } = DateUtils.getCurrentPeriods();
-    return this.getMonthlyReflections({
-      year: currentMonth.year,
-      month: currentMonth.month,
-      user_idx: userIdx
-    });
-  }
-
-  async getCurrentWeekReflections(userIdx?: number): Promise<ApiResponse<ReflectionResponse>> {
-    const today = new Date().toISOString().split('T')[0];
-    return this.getWeeklyReflections({
-      reference_date: today,
-      user_idx: userIdx
-    });
-  }
-
-  async getTodayReflections(userIdx?: number): Promise<ApiResponse<ReflectionResponse>> {
-    const today = new Date().toISOString().split('T')[0];
-    return this.getDailyReflections({
-      date: today,
-      user_idx: userIdx
-    });
-  }
 }
 
 export const reflectionApi = new ReflectionApiService();

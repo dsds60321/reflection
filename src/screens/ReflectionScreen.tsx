@@ -479,7 +479,7 @@ export const ReflectionScreen: React.FC = () => {
         <View style={styles.itemContent}>
           <Text style={[styles.itemTitle, { color: colors.text.primary }]}>{item.title}</Text>
           <Text style={[styles.itemAuthor, { color: colors.text.secondary }]}>
-            {item.author_name || '나'}
+            {item.author_name || '나'} → {item.recipients?.join(',')}
           </Text>
           <Text style={[styles.itemPreview, { color: colors.text.secondary }]} numberOfLines={2}>
             {item.content}

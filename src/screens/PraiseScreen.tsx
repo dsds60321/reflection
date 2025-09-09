@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,150 +8,395 @@ import {
   StatusBar,
   Image,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColors } from '../hooks/useColors';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { typography } from '../styles/typography';
 import { dimensions } from '../styles/dimensions';
 import { Calendar } from '../components/common/Calendar';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-
-// 칭찬 데이터
-const MOCK_PRAISES = [
-  {
-    id: '1',
-    title: '업무 중 도움을 주신 것에 대한 칭찬',
-    content: '이번 프로젝트에서 정말 적극적으로 도와주셔서 덕분에 성공적으로 마무리할 수 있었습니다. 언제나 긍정적인 에너지로 팀을 이끌어주셔서 감사합니다.',
-    author: '홍길동',
-    recipient: '김영희님',
-    date: '2025-08-27',
-    displayDate: '2025년 8월 27일',
-    status: 'pending' as const,
-  },
-  {
-    id: '2',
-    title: '회의 시간에 좋은 의견 제시',
-    content: '이번 주 팀 회의에서 정말 좋은 아이디어를 제시해주셔서 감사했습니다. 덕분에 프로젝트 방향성을 명확히 할 수 있었어요.',
-    author: '김영희',
-    recipient: '팀원들',
-    date: '2025-08-26',
-    displayDate: '2025년 8월 26일',
-    status: 'completed' as const,
-  },
-  {
-    id: '3',
-    title: '프로젝트 성공에 대한 칭찬',
-    content: '담당하고 있던 프로젝트를 일정에 맞춰 완벽히 완료해주셨습니다. 중간에 발생한 문제들도 빠르게 해결해주셔서 정말 감사했습니다.',
-    author: '이민호',
-    recipient: '프로젝트 팀',
-    date: '2025-08-25',
-    displayDate: '2025년 8월 25일',
-    status: 'pending' as const,
-  },
-  {
-    id: '4',
-    title: '동료와의 원활한 협업',
-    content: '동료와 업무 방식에 대해 의견이 다를 때도 차분하게 이야기해주셔서 좋은 결론을 낼 수 있었습니다. 덕분에 팀워크가 더욱 좋아졌어요.',
-    author: '박서준',
-    recipient: '팀원들',
-    date: '2025-08-24',
-    displayDate: '2025년 8월 24일',
-    status: 'completed' as const,
-  },
-  {
-    id: '5',
-    title: '고객 응대 칭찬',
-    content: '고객의 요구사항을 정확히 파악하고 친절하게 응대해주셔서 고객 만족도가 높았습니다. 정말 프로페셔널한 모습이었어요.',
-    author: '최지우',
-    recipient: '고객서비스팀',
-    date: '2025-08-23',
-    displayDate: '2025년 8월 23일',
-    status: 'pending' as const,
-  },
-  {
-    id: '6',
-    title: '코드 리뷰 감사합니다',
-    content: '꼼꼼하게 코드 리뷰를 해주셔서 버그를 미리 발견할 수 있었습니다. 덕분에 팀 전체의 코드 품질이 향상되었어요.',
-    author: '정한솔',
-    recipient: '개발팀',
-    date: '2025-08-22',
-    displayDate: '2025년 8월 22일',
-    status: 'completed' as const,
-  },
-];
-
-
-// 날짜별로 칭찬을 그룹화하는 함수
-const groupPraisesByDate = (praises: typeof MOCK_PRAISES) => {
-  return praises.reduce((acc, praise) => {
-    const date = praise.date;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(praise);
-    return acc;
-  }, {} as Record<string, typeof MOCK_PRAISES>);
-};
+import {
+  praiseApi,
+  Praise
+} from '../service/PraiseApiService';
 
 export const PraiseScreen: React.FC = () => {
   const colors = useColors();
   const { theme, toggleTheme } = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuth();
 
   // 상태 관리
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isWeekView, setIsWeekView] = useState(false);
+  const [praises, setPraises] = useState<Praise[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    weekReference: new Date().toISOString().split('T')[0]
+  });
 
-  const handlePraiseSubmit = (formData: { title: string; content: string; recipient: string; }) => {
-    console.log('새 칭찬 등록:', formData);
-    // TODO: 실제 API 호출로 칭찬 저장
-  };
+  // 월별 데이터 로드
+  const loadMonthlyData = useCallback(async (year: number, month: number) => {
+    setLoading(true);
+    try {
+      const response = await praiseApi.getMonthlyPraises({
+        year,
+        month,
+      });
 
-  // 검색 및 필터링
+      console.log('---- monthly praise response', response);
+
+      if (response.success) {
+        // data가 배열인 경우와 객체인 경우 모두 처리
+        if (Array.isArray(response.data)) {
+          setPraises(response.data);
+          console.log('월별 칭찬 데이터 로드 완료 (배열):', {
+            period: `${year}-${month}`,
+            count: response.data.length,
+          });
+        } else if (response.data && response.data.praises) {
+          setPraises(response.data.praises);
+          console.log('월별 칭찬 데이터 로드 완료 (객체):', {
+            period: `${year}-${month}`,
+            count: response.data.total_count || response.data.praises.length,
+            range: response.data.period_info
+          });
+        } else {
+          // 데이터가 없는 경우
+          setPraises([]);
+          console.log('월별 칭찬 데이터 없음:', {
+            period: `${year}-${month}`,
+            message: response.message || '데이터가 없습니다.'
+          });
+        }
+      } else {
+        console.error('월별 칭찬 데이터 로드 실패:', response.error);
+        setPraises([]);
+      }
+    } catch (error) {
+      console.error('월별 칭찬 API 요청 실패:', error);
+      setPraises([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 주별 데이터 로드
+  const loadWeeklyData = useCallback(async (referenceDate: string) => {
+    setLoading(true);
+    try {
+      const response = await praiseApi.getWeeklyPraises({
+        reference_date: referenceDate,
+      });
+
+      console.log('---- weekly praise response', response);
+
+      if (response.success) {
+        // data가 배열인 경우와 객체인 경우 모두 처리
+        if (Array.isArray(response.data)) {
+          setPraises(response.data);
+          console.log('주별 칭찬 데이터 로드 완료 (배열):', {
+            reference: referenceDate,
+            count: response.data.length,
+          });
+        } else if (response.data && response.data.praises) {
+          setPraises(response.data.praises);
+          console.log('주별 칭찬 데이터 로드 완료 (객체):', {
+            reference: referenceDate,
+            count: response.data.total_count || response.data.praises.length,
+            range: response.data.period_info
+          });
+        } else {
+          // 데이터가 없는 경우
+          setPraises([]);
+          console.log('주별 칭찬 데이터 없음:', {
+            reference: referenceDate,
+            message: response.message || '데이터가 없습니다.'
+          });
+        }
+      } else {
+        console.error('주별 칭찬 데이터 로드 실패:', response.error);
+        setPraises([]);
+      }
+    } catch (error) {
+      console.error('주별 칭찬 API 요청 실패:', error);
+      setPraises([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 일별 데이터 로드
+  const loadDailyData = useCallback(async (date: string) => {
+    setLoading(true);
+    try {
+      const response = await praiseApi.getDailyPraises({
+        date
+      });
+
+      console.log('---- daily praise response', response);
+
+      if (response.success) {
+        // data가 배열인 경우와 객체인 경우 모두 처리
+        if (Array.isArray(response.data)) {
+          setPraises(response.data);
+          console.log('일별 칭찬 데이터 로드 완료 (배열):', {
+            date,
+            count: response.data.length,
+          });
+        } else if (response.data && response.data.praises) {
+          setPraises(response.data.praises);
+          console.log('일별 칭찬 데이터 로드 완료 (객체):', {
+            date,
+            count: response.data.total_count || response.data.praises.length
+          });
+        } else {
+          // 데이터가 없는 경우
+          setPraises([]);
+          console.log('일별 칭찬 데이터 없음:', {
+            date,
+            message: response.message || '데이터가 없습니다.'
+          });
+        }
+      } else {
+        console.error('일별 칭찬 데이터 로드 실패:', response.error);
+        setPraises([]);
+      }
+    } catch (error) {
+      console.error('일별 칭찬 API 요청 실패:', error);
+      setPraises([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    loadMonthlyData(currentPeriod.year, currentPeriod.month);
+  }, [loadMonthlyData, currentPeriod.year, currentPeriod.month]);
+
+  // 주간 변경 핸들러
+  const handleWeekChange = useCallback(
+    async (weekInfo: { weekStart: string; weekEnd: string; referenceDate: string }) => {
+      console.log('주간 변경 >>>> :', weekInfo);
+
+      try {
+        const response = await praiseApi.getWeeklyPraises({
+          reference_date: weekInfo.referenceDate
+        });
+
+        console.log('---- weekly praise response', response);
+
+        if (response.success) {
+          // data가 배열인 경우와 객체인 경우 모두 처리
+          if (Array.isArray(response.data)) {
+            setPraises(response.data);
+            console.log('주간 변경 - 칭찬 데이터 로드 완료 (배열):', {
+              reference: weekInfo.referenceDate,
+              weekRange: `${weekInfo.weekStart} ~ ${weekInfo.weekEnd}`,
+              count: response.data.length,
+            });
+          } else if (response.data && response.data.praises) {
+            setPraises(response.data.praises);
+            console.log('주간 변경 - 칭찬 데이터 로드 완료 (객체):', {
+              reference: weekInfo.referenceDate,
+              weekRange: `${weekInfo.weekStart} ~ ${weekInfo.weekEnd}`,
+              count: response.data.total_count || response.data.praises.length,
+              range: response.data.period_info
+            });
+          } else {
+            // 데이터가 없는 경우
+            setPraises([]);
+            console.log('주간 변경 - 칭찬 데이터 없음:', {
+              reference: weekInfo.referenceDate,
+              message: response.message || '데이터가 없습니다.'
+            });
+          }
+        } else {
+          console.error('주간 변경 - 칭찬 데이터 로드 실패:', response.error);
+          setPraises([]);
+        }
+      } catch (error) {
+        console.error('주간 변경 - 칭찬 API 요청 실패:', error);
+        setPraises([]);
+      }
+
+      // 현재 기간 업데이트
+      setCurrentPeriod(prev => ({
+        ...prev,
+        weekReference: weekInfo.referenceDate,
+      }));
+
+      // 선택된 날짜 초기화
+      setSelectedDate(null);
+    },
+    []
+  );
+
+  // 월 변경 핸들러
+  const handleMonthChange = useCallback(
+    async (month: { year: number; month: number; dateString: string }) => {
+      console.log('월 변경 >>>> :', month);
+
+      // 월간 모드일 때만 월별 데이터 로드
+      if (!isWeekView) {
+        try {
+          const response = await praiseApi.getMonthlyPraises({
+            year: month.year,
+            month: month.month,
+          });
+
+          console.log('---- monthly praise response', response);
+
+          if (response.success) {
+            // data가 배열인 경우와 객체인 경우 모두 처리
+            if (Array.isArray(response.data)) {
+              setPraises(response.data);
+              console.log('월 변경 - 칭찬 데이터 로드 완료 (배열):', {
+                period: `${month.year}-${month.month}`,
+                count: response.data.length,
+              });
+            } else if (response.data && response.data.praises) {
+              setPraises(response.data.praises);
+              console.log('월 변경 - 칭찬 데이터 로드 완료 (객체):', {
+                period: `${month.year}-${month.month}`,
+                count: response.data.total_count || response.data.praises.length,
+              });
+            } else {
+              // 데이터가 없는 경우
+              setPraises([]);
+              console.log('월 변경 - 칭찬 데이터 없음:', {
+                period: `${month.year}-${month.month}`,
+                message: response.message || '데이터가 없습니다.'
+              });
+            }
+          } else {
+            console.error('월 변경 - 칭찬 데이터 로드 실패:', response.error);
+            setPraises([]);
+          }
+        } catch (error) {
+          console.error('월 변경 - 칭찬 API 요청 실패:', error);
+          setPraises([]);
+        }
+      }
+
+      setCurrentPeriod({
+        year: month.year,
+        month: month.month,
+        weekReference: month.dateString,
+      });
+
+      // 선택된 날짜 초기화
+      setSelectedDate(null);
+
+      // 주간 모드일 때는 해당 월의 첫 주 데이터 로드
+      if (isWeekView) {
+        const firstDayOfMonth = `${month.year}-${month.month
+          .toString()
+          .padStart(2, '0')}-01`;
+        loadWeeklyData(firstDayOfMonth);
+      }
+    },
+    [isWeekView, loadWeeklyData]
+  );
+
+  // 날짜 선택 핸들러
+  const handleDatePress = useCallback((dateString: string) => {
+    console.log('날짜 선택:', dateString);
+
+    if (selectedDate === dateString) {
+      // 같은 날짜 다시 클릭 시 선택 해제하고 원래 모드로 복귀
+      setSelectedDate(null);
+
+      if (isWeekView) {
+        loadWeeklyData(currentPeriod.weekReference);
+      } else {
+        loadMonthlyData(currentPeriod.year, currentPeriod.month);
+      }
+    } else {
+      // 새 날짜 선택 시 해당 일의 데이터만 로드
+      setSelectedDate(dateString);
+      loadDailyData(dateString);
+    }
+  }, [selectedDate, isWeekView, currentPeriod, loadWeeklyData, loadMonthlyData, loadDailyData]);
+
+  // 주/월 모드 토글 핸들러
+  const handleWeekModeToggle = useCallback(() => {
+    console.log('주/월 모드 토글:', !isWeekView ? '주간' : '월간');
+
+    const newIsWeekView = !isWeekView;
+    setIsWeekView(newIsWeekView);
+    setSelectedDate(null);
+
+    if (newIsWeekView) {
+      // 주간 모드로 전환
+      loadWeeklyData(currentPeriod.weekReference);
+    } else {
+      // 월간 모드로 전환
+      loadMonthlyData(currentPeriod.year, currentPeriod.month);
+    }
+  }, [isWeekView, currentPeriod, loadWeeklyData, loadMonthlyData]);
+
+  // 검색 필터링
   const filteredPraises = useMemo(() => {
-    let filtered = MOCK_PRAISES;
+    if (!searchText.trim()) return praises;
 
-    // 텍스트 검색
-    if (searchText) {
-      filtered = filtered.filter(item =>
-        item.title.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.content.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.author.toLowerCase().includes(searchText.toLowerCase())
-      );
-    }
-
-    // 날짜 필터링
-    if (selectedDate) {
-      filtered = filtered.filter(item => item.date === selectedDate);
-    }
-
-    return filtered;
-  }, [searchText, selectedDate]);
-
-  // 날짜별 그룹화
-  const groupedPraises = useMemo(() => {
-    return groupPraisesByDate(filteredPraises);
-  }, [filteredPraises]);
-
-  // 칭찬 클릭 핸들러
-  const handlePraisePress = (item: typeof MOCK_PRAISES[0]) => {
-    navigation.navigate('PraiseDetail', { praise: item });
-  };
+    const searchLower = searchText.toLowerCase();
+    return praises.filter(item =>
+      item.title.toLowerCase().includes(searchLower) ||
+      item.content.toLowerCase().includes(searchLower) ||
+      item.author_name?.toLowerCase().includes(searchLower) ||
+      item.recipient.toLowerCase().includes(searchLower)
+    );
+  }, [praises, searchText]);
 
   // 날짜에 칭찬이 있는지 확인하는 함수
-  const hasPraisesForDate = (dateString: string) => {
-    return MOCK_PRAISES.some(p => p.date === dateString);
-  };
+  const hasPraisesForDate = useCallback((dateString: string) => {
+    return praises.some(p => {
+      const praiseDate = p.createdAt ? p.createdAt.split('T')[0] : '';
+      return praiseDate === dateString;
+    });
+  }, [praises]);
 
   // 검색 초기화
   const handleClearSearch = () => {
     setSearchText('');
     setSelectedDate(null);
+
+    if (isWeekView) {
+      loadWeeklyData(currentPeriod.weekReference);
+    } else {
+      loadMonthlyData(currentPeriod.year, currentPeriod.month);
+    }
   };
+
+  // 칭찬 클릭 핸들러
+  const handlePraisePress = (item: Praise) => {
+    navigation.navigate('PraiseDetail', { praise: item });
+  };
+
+  // 날짜별로 칭찬을 그룹화하는 함수
+  const groupPraisesByDate = useMemo(() => {
+    return filteredPraises.reduce((acc, praise) => {
+      // createdAt에서 날짜 부분만 추출
+      const date = praise.createdAt ? praise.createdAt.split('T')[0] : '';
+      if (date && !acc[date]) {
+        acc[date] = [];
+      }
+      if (date) {
+        acc[date].push(praise);
+      }
+      return acc;
+    }, {} as Record<string, Praise[]>);
+  }, [filteredPraises]);
 
   // 헤더 렌더링
   const renderHeader = () => (
@@ -180,7 +425,7 @@ export const PraiseScreen: React.FC = () => {
         <MaterialCommunityIcons name="magnify" size={20} color={colors.text.secondary} />
         <TextInput
           style={[styles.searchInput, { color: colors.text.primary }]}
-          placeholder="제목, 내용, 작성자로 검색..."
+          placeholder="제목, 내용, 작성자, 대상자로 검색..."
           placeholderTextColor={colors.text.secondary}
           value={searchText}
           onChangeText={setSearchText}
@@ -199,64 +444,84 @@ export const PraiseScreen: React.FC = () => {
     <Calendar
       variant="list"
       selectedDate={selectedDate}
-      onDatePress={(dateString) => {
-        setSelectedDate(selectedDate === dateString ? null : dateString);
-      }}
-      onMonthChange={(month) => {
-        console.log('Month changed to:', month);
-      }}
+      onDatePress={handleDatePress}
+      onMonthChange={handleMonthChange}
+      onWeekChange={handleWeekChange}
       subtext={`총 ${filteredPraises.length}개의 칭찬`}
       hasDataForDate={hasPraisesForDate}
-      initialDate="2025-08-27"
-      onWeekModeToggle={() => setIsWeekView(!isWeekView)}
+      initialDate={`${currentPeriod.year}-${currentPeriod.month.toString().padStart(2, '0')}-01`}
+      onWeekModeToggle={handleWeekModeToggle}
       isWeekView={isWeekView}
     />
   );
 
-  // 칭찬 아이템 렌더링
-  const renderPraiseItem = (item: typeof MOCK_PRAISES[0]) => (
-    <TouchableOpacity
-      key={item.id}
-      style={[styles.listItem, { backgroundColor: colors.background.card }]}
-      onPress={() => handlePraisePress(item)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.itemIcon, { backgroundColor: colors.primary.yellow }]}>
-        <Image
-          source={require("../assets/images/angel.png")}
-          style={styles.itemIconImage}
-        />
-      </View>
-      <View style={styles.itemContent}>
-        <Text style={[styles.itemTitle, { color: colors.text.primary }]}>{item.title}</Text>
-        <Text style={[styles.itemAuthor, { color: colors.text.secondary }]}>
-          {item.author} → {item.recipient}
-        </Text>
-        <Text style={[styles.itemPreview, { color: colors.text.secondary }]} numberOfLines={2}>
-          {item.content}
-        </Text>
-        <View style={styles.itemFooter}>
-          <Text style={[styles.itemDate, { color: colors.text.secondary }]}>{item.displayDate}</Text>
-          <View style={styles.itemActions}>
-            <View style={[
-              styles.statusChip,
-              { backgroundColor: item.status === 'completed' ? colors.primary.coral : colors.background.cardSecondary }
-            ]}>
-              <Text style={[
-                styles.statusText,
-                { color: item.status === 'completed' ? colors.text.white : colors.text.secondary }
+  // 칭찬 아이템 렌더링 - key prop을 인덱스와 함께 처리
+  const renderPraiseItem = (item: Praise, index: number) => {
+    const createdDate = new Date(item.createdAt);
+    const displayDate = createdDate.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // 고유한 key 생성
+    const uniqueKey = item.idx ? `praise-${item.idx}` : `praise-${item.title}-${index}`;
+
+    return (
+      <TouchableOpacity
+        key={uniqueKey}
+        style={[styles.listItem, { backgroundColor: colors.background.card }]}
+        onPress={() => handlePraisePress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.itemIcon, { backgroundColor: colors.primary.yellow }]}>
+          <Image
+            source={require("../assets/images/angel.png")}
+            style={styles.itemIconImage}
+          />
+        </View>
+        <View style={styles.itemContent}>
+          <Text style={[styles.itemTitle, { color: colors.text.primary }]}>{item.title}</Text>
+          <Text style={[styles.itemAuthor, { color: colors.text.secondary }]}>
+            {item.author_name || '나'} → {item.recipients?.join(',')}
+          </Text>
+          <Text style={[styles.itemPreview, { color: colors.text.secondary }]} numberOfLines={2}>
+            {item.content}
+          </Text>
+          <View style={styles.itemFooter}>
+            <Text style={[styles.itemDate, { color: colors.text.secondary }]}>{displayDate}</Text>
+            <View style={styles.itemActions}>
+              <View style={[
+                styles.statusChip,
+                { backgroundColor: item.status === 'completed' ? colors.primary.coral : colors.background.cardSecondary }
               ]}>
-                {item.status === 'completed' ? '전달됨' : '대기중'}
-              </Text>
+                <Text style={[
+                  styles.statusText,
+                  { color: item.status === 'completed' ? colors.text.white : colors.text.secondary }
+                ]}>
+                  {item.status === 'completed' ? '전달됨' : '대기중'}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   // 칭찬 목록 렌더링
   const renderPraisesList = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary.coral} />
+          <Text style={[styles.loadingText, { color: colors.text.secondary }]}>
+            칭찬을 불러오는 중...
+          </Text>
+        </View>
+      );
+    }
+
     if (filteredPraises.length === 0) {
       return (
         <View style={styles.emptyState}>
@@ -275,12 +540,17 @@ export const PraiseScreen: React.FC = () => {
 
     if (selectedDate) {
       // 선택된 날짜의 칭찬만 표시
+      const selectedDateDisplay = new Date(selectedDate).toLocaleDateString('ko-KR', {
+        month: 'long',
+        day: 'numeric'
+      });
+
       return (
         <View style={styles.listContainer}>
           <Text style={[styles.listTitle, { color: colors.text.primary }]}>
-            {new Date(selectedDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}의 칭찬
+            {selectedDateDisplay}의 칭찬
           </Text>
-          {filteredPraises.map(renderPraiseItem)}
+          {filteredPraises.map((item, index) => renderPraiseItem(item, index))}
         </View>
       );
     }
@@ -288,16 +558,23 @@ export const PraiseScreen: React.FC = () => {
     // 날짜별로 그룹화하여 표시
     return (
       <View style={styles.listContainer}>
-        {Object.entries(groupedPraises)
+        {Object.entries(groupPraisesByDate)
           .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-          .map(([date, praises]) => (
-            <View key={date} style={styles.dateGroup}>
-              <Text style={[styles.dateGroupTitle, { color: colors.text.primary }]}>
-                {new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-              </Text>
-              {praises.map(renderPraiseItem)}
-            </View>
-          ))}
+          .map(([date, praises]) => {
+            const dateDisplay = new Date(date).toLocaleDateString('ko-KR', {
+              month: 'long',
+              day: 'numeric'
+            });
+
+            return (
+              <View key={`date-group-${date}`} style={styles.dateGroup}>
+                <Text style={[styles.dateGroupTitle, { color: colors.text.primary }]}>
+                  {dateDisplay} ({praises.length}개)
+                </Text>
+                {praises.map((item, index) => renderPraiseItem(item, index))}
+              </View>
+            );
+          })}
       </View>
     );
   };
@@ -377,6 +654,17 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: dimensions.spacing.xs,
+  },
+
+  // Loading
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: dimensions.spacing.xl,
+  },
+  loadingText: {
+    marginTop: dimensions.spacing.md,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fontFamily.regular,
   },
 
   // List Section
